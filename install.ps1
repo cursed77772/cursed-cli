@@ -1,272 +1,194 @@
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-#region Variables
+# Variables
+
 $cursedFolderPath = "$env:LOCALAPPDATA\cursed"
 $cursedOldFolderPath = "$HOME\cursed-cli"
-#endregion Variables
 
-#region Functions
+# Functions
 
 function Write-Success {
-[CmdletBinding()]
-param ()
-
-```
-process {
-    Write-Host -Object ' > OK' -ForegroundColor 'Green'
-}
-```
-
+Write-Host ' > OK' -ForegroundColor Green
 }
 
 function Write-Unsuccess {
-[CmdletBinding()]
-param ()
-
-```
-process {
-    Write-Host -Object ' > ERROR' -ForegroundColor 'Red'
-}
-```
-
+Write-Host ' > ERROR' -ForegroundColor Red
 }
 
 function Test-Admin {
-[CmdletBinding()]
-param ()
+Write-Host 'Checking if the script is not being run as administrator...' -NoNewline
 
 ```
-begin {
-    Write-Host -Object 'Checking if the script is not being run as administrator...' -NoNewline
-}
+$currentUser = New-Object Security.Principal.WindowsPrincipal(
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+)
 
-process {
-    $currentUser = New-Object Security.Principal.WindowsPrincipal(
-        [Security.Principal.WindowsIdentity]::GetCurrent()
-    )
-
-    -not $currentUser.IsInRole(
-        [Security.Principal.WindowsBuiltInRole]::Administrator
-    )
-}
+return -not $currentUser.IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator
+)
 ```
 
 }
 
 function Test-PowerShellVersion {
-[CmdletBinding()]
-param ()
+$PSMinVersion = [version]'5.1'
 
 ```
-begin {
-    $PSMinVersion = [version]'5.1'
-}
+Write-Host 'Checking if your PowerShell version is compatible...' -NoNewline
 
-process {
-    Write-Host -Object 'Checking if your PowerShell version is compatible...' -NoNewline
-    $PSVersionTable.PSVersion -ge $PSMinVersion
-}
+return $PSVersionTable.PSVersion -ge $PSMinVersion
 ```
 
 }
 
 function Move-OldCursedFolder {
-[CmdletBinding()]
-param ()
+if (Test-Path -Path $cursedOldFolderPath) {
+Write-Host 'Moving the old cursed folder...' -NoNewline
 
 ```
-process {
-    if (Test-Path -Path $cursedOldFolderPath) {
-        Write-Host -Object 'Moving the old cursed folder...' -NoNewline
-
-        if (-not (Test-Path -Path $cursedFolderPath)) {
-            New-Item -ItemType Directory -Path $cursedFolderPath -Force | Out-Null
-        }
-
-        Copy-Item `
-            -Path "$cursedOldFolderPath\*" `
-            -Destination $cursedFolderPath `
-            -Recurse `
-            -Force
-
-        Remove-Item `
-            -Path $cursedOldFolderPath `
-            -Recurse `
-            -Force
-
-        Write-Success
+    if (-not (Test-Path -Path $cursedFolderPath)) {
+        New-Item -ItemType Directory -Path $cursedFolderPath -Force | Out-Null
     }
+
+    Copy-Item `
+        -Path "$cursedOldFolderPath\*" `
+        -Destination $cursedFolderPath `
+        -Recurse `
+        -Force
+
+    Remove-Item `
+        -Path $cursedOldFolderPath `
+        -Recurse `
+        -Force
+
+    Write-Success
 }
 ```
 
 }
 
 function Get-Cursed {
-[CmdletBinding()]
-param ()
-
-```
-begin {
-    if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
-        $architecture = 'x64'
-    }
-    elseif ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
-        $architecture = 'arm64'
-    }
-    else {
-        $architecture = 'x32'
-    }
-
-    if ($v) {
-        if ($v -match '^\d+\.\d+\.\d+$') {
-            $targetVersion = $v
-        }
-        else {
-            Write-Warning -Message "You have specified an invalid cursed version: $v`nThe version must be in the following format: 1.2.3"
-            Pause
-            exit
-        }
-    }
-    else {
-        Write-Host -Object 'Fetching the latest cursed version...' -NoNewline
-
-        $latestRelease = Invoke-RestMethod `
-            -Uri 'https://api.github.com/repos/cursed77772/cursed-cli/releases/latest'
-
-        $targetVersion = $latestRelease.tag_name -replace '^v', ''
-
-        Write-Success
-    }
-
-    $archivePath = [System.IO.Path]::Combine(
-        [System.IO.Path]::GetTempPath(),
-        'cursed.zip'
-    )
+if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
+$architecture = 'x64'
+}
+elseif ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
+$architecture = 'arm64'
+}
+else {
+$architecture = 'x32'
 }
 
-process {
-    Write-Host -Object "Downloading cursed v$targetVersion..." -NoNewline
-
-    $Parameters = @{
-        Uri             = "https://github.com/cursed77772/cursed-cli/releases/download/v$targetVersion/cursed-$targetVersion-windows-$architecture.zip"
-        UseBasicParsing = $true
-        OutFile         = $archivePath
+```
+if ($v) {
+    if ($v -match '^\d+\.\d+\.\d+$') {
+        $targetVersion = $v
     }
+    else {
+        Write-Warning "Invalid cursed version: $v"
+        Write-Warning 'The version must use the format: 1.2.3'
+        exit
+    }
+}
+else {
+    Write-Host 'Fetching the latest cursed version...' -NoNewline
 
-    Invoke-WebRequest @Parameters
+    $latestRelease = Invoke-RestMethod `
+        -Uri 'https://api.github.com/repos/cursed77772/cursed-cli/releases/latest'
+
+    $targetVersion = $latestRelease.tag_name -replace '^v', ''
 
     Write-Success
 }
 
-end {
-    $archivePath
-}
+$archivePath = Join-Path `
+    ([System.IO.Path]::GetTempPath()) `
+    'cursed.zip'
+
+Write-Host "Downloading cursed v$targetVersion..." -NoNewline
+
+$downloadUrl = "https://github.com/cursed77772/cursed-cli/releases/download/v$targetVersion/cursed-$targetVersion-windows-$architecture.zip"
+
+Invoke-WebRequest `
+    -Uri $downloadUrl `
+    -UseBasicParsing `
+    -OutFile $archivePath
+
+Write-Success
+
+return $archivePath
 ```
 
 }
 
 function Add-CursedToPath {
-[CmdletBinding()]
-param ()
+Write-Host 'Making cursed available in the PATH...' -NoNewline
 
 ```
-begin {
-    Write-Host -Object 'Making cursed available in the PATH...' -NoNewline
+$user = [EnvironmentVariableTarget]::User
+$path = [Environment]::GetEnvironmentVariable('PATH', $user)
 
-    $user = [EnvironmentVariableTarget]::User
-    $path = [Environment]::GetEnvironmentVariable('PATH', $user)
+if ($path -notlike "*$cursedFolderPath*") {
+    $path = "$path;$cursedFolderPath"
 }
 
-process {
-    $escapedOldPath = [regex]::Escape($cursedOldFolderPath)
+[Environment]::SetEnvironmentVariable(
+    'PATH',
+    $path,
+    $user
+)
 
-    $path = $path -replace "$escapedOldPath\\?;?", ''
-
-    if ($path -notlike "*$cursedFolderPath*") {
-        $path = "$path;$cursedFolderPath"
-    }
+if (($env:PATH -split ';') -notcontains $cursedFolderPath) {
+    $env:PATH = "$env:PATH;$cursedFolderPath"
 }
 
-end {
-    [Environment]::SetEnvironmentVariable(
-        'PATH',
-        $path,
-        $user
-    )
-
-    if (($env:PATH -split ';') -notcontains $cursedFolderPath) {
-        $env:PATH = "$env:PATH;$cursedFolderPath"
-    }
-
-    Write-Success
-}
+Write-Success
 ```
 
 }
 
 function Install-Cursed {
-[CmdletBinding()]
-param ()
+Write-Host 'Installing cursed...'
 
 ```
-begin {
-    Write-Host -Object 'Installing cursed...'
+$archivePath = Get-Cursed
+
+if (-not (Test-Path -Path $cursedFolderPath)) {
+    New-Item `
+        -ItemType Directory `
+        -Path $cursedFolderPath `
+        -Force | Out-Null
 }
 
-process {
-    $archivePath = Get-Cursed
+Write-Host 'Extracting cursed...' -NoNewline
 
-    if (-not (Test-Path -Path $cursedFolderPath)) {
-        New-Item -ItemType Directory -Path $cursedFolderPath -Force | Out-Null
-    }
+Expand-Archive `
+    -Path $archivePath `
+    -DestinationPath $cursedFolderPath `
+    -Force
 
-    Write-Host -Object 'Extracting cursed...' -NoNewline
+Write-Success
 
-    Expand-Archive `
-        -Path $archivePath `
-        -DestinationPath $cursedFolderPath `
-        -Force
+Add-CursedToPath
 
-    Write-Success
+Remove-Item `
+    -Path $archivePath `
+    -Force `
+    -ErrorAction SilentlyContinue
 
-    Add-CursedToPath
-}
-
-end {
-    Remove-Item `
-        -Path $archivePath `
-        -Force `
-        -ErrorAction 'SilentlyContinue'
-
-    Write-Host `
-        -Object 'cursed was successfully installed!' `
-        -ForegroundColor 'Green'
-}
+Write-Host 'cursed was successfully installed!' -ForegroundColor Green
 ```
 
 }
 
-#endregion Functions
-
-#region Main
-#region Checks
+# Checks
 
 if (-not (Test-PowerShellVersion)) {
 Write-Unsuccess
 
 ```
-Write-Warning `
-    -Message 'PowerShell 5.1 or higher is required to run this script'
-
-Write-Warning `
-    -Message "You are running PowerShell $($PSVersionTable.PSVersion)"
-
-Write-Host -Object 'PowerShell 5.1 install guide:'
-Write-Host -Object 'https://learn.microsoft.com/skypeforbusiness/set-up-your-computer-for-windows-powershell/download-and-install-windows-powershell-5-1'
-
-Write-Host -Object 'PowerShell 7 install guide:'
-Write-Host -Object 'https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows'
+Write-Warning 'PowerShell 5.1 or higher is required to run this script.'
+Write-Warning "You are running PowerShell $($PSVersionTable.PSVersion)."
 
 Pause
 exit
@@ -281,9 +203,10 @@ if (-not (Test-Admin)) {
 Write-Unsuccess
 
 ```
-Write-Warning -Message 'The script was run as administrator. This can result in problems with the installation process or unexpected behavior. Do not continue if you do not know what you are doing.'
+Write-Warning 'The script is running as administrator.'
+Write-Warning 'This can cause problems with the installation process.'
 
-$Host.UI.RawUI.Flushinputbuffer()
+$Host.UI.RawUI.FlushInputBuffer()
 
 $choices = [System.Management.Automation.Host.ChoiceDescription[]] @(
     (New-Object System.Management.Automation.Host.ChoiceDescription '&Yes', 'Abort installation.'),
@@ -298,10 +221,7 @@ $choice = $Host.UI.PromptForChoice(
 )
 
 if ($choice -eq 0) {
-    Write-Host `
-        -Object 'cursed installation aborted' `
-        -ForegroundColor 'Yellow'
-
+    Write-Host 'cursed installation aborted' -ForegroundColor Yellow
     Pause
     exit
 }
@@ -312,12 +232,10 @@ else {
 Write-Success
 }
 
-#endregion Checks
+# Check existing installation
 
-#region Cursed
-
-$installedCursed = Join-Path `    -Path $cursedFolderPath`
--ChildPath 'cursed.exe'
+$installedCursed = Join-Path `    $cursedFolderPath`
+'cursed.exe'
 
 if (-not (Test-Path -LiteralPath $installedCursed -PathType Leaf)) {
 $installedCommand = Get-Command `        -Name 'cursed'`
@@ -337,7 +255,7 @@ else {
 }
 
 if ($installedCursed) {
-$Host.UI.RawUI.Flushinputbuffer()
+$Host.UI.RawUI.FlushInputBuffer()
 
 ```
 $choices = [System.Management.Automation.Host.ChoiceDescription[]] @(
@@ -347,7 +265,7 @@ $choices = [System.Management.Automation.Host.ChoiceDescription[]] @(
 
 $choice = $Host.UI.PromptForChoice(
     '',
-    'Cursed is already installed. Do you want to fix your installation?',
+    'Cursed is already installed. Do you want to update it?',
     $choices,
     0
 )
@@ -359,18 +277,18 @@ if ($choice -eq 0) {
         throw "Cursed update failed with exit code $LASTEXITCODE."
     }
 
-    return
+    exit
 }
 ```
 
 }
 
+# Install
+
 Move-OldCursedFolder
 Install-Cursed
 
-Write-Host -Object "`nRun" -NoNewline
-Write-Host -Object ' cursed -h ' -NoNewline -ForegroundColor 'Cyan'
-Write-Host -Object 'to get started'
-
-#endregion Cursed
-#endregion Main
+Write-Host ''
+Write-Host 'Run ' -NoNewline
+Write-Host 'cursed -h' -ForegroundColor Cyan -NoNewline
+Write-Host ' to get started.'
